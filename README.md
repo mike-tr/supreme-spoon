@@ -35,6 +35,9 @@ we revert back and mark the tile as not buildable.
 
 in case it didn't break those rules we add the tile in buildings, and remove from open.
 
+WE GENERATE from the "most" far away to the least far away, this way we have much better controll,
+and better path's. ( we constantly making sure further away buildings are CLOSE ).
+
 
 
 Next step:
