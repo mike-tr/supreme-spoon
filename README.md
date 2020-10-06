@@ -1,55 +1,39 @@
-# Screeps Typescript Starter
+Explanation how to run:
 
-Screeps Typescript Starter is a starting point for a Screeps AI written in Typescript. It provides everything you need to start writing your AI whilst leaving `main.ts` as empty as possible.
+https://screepers.gitbook.io/screeps-typescript-starter/getting-started/deploying
 
-## Basic Usage
 
-You will need:
+About:
+This is my bot, first step i want to generate an automatic base builder.
 
-- [Node.JS](https://nodejs.org/en/download) (10.x)
-- A Package Manager ([Yarn](https://yarnpkg.com/en/docs/getting-started) or [npm](https://docs.npmjs.com/getting-started/installing-node))
-- Rollup CLI (Optional, install via `npm install -g rollup`)
+The algorithem for that will be as follows:
 
-Download the latest source [here](https://github.com/screepers/screeps-typescript-starter/archive/master.zip) and extract it to a folder.
+Get terrain data and generate a map, with a center point ( would be the first spawn, how to find the best starting spawn point would be another thing by itself )
+the map only cares about natural walls, resources, controller.
+it would mark all of the above as not open and unwalkable.
 
-Open the folder in your terminal and run your package manager to install the required packages and TypeScript declaration files:
+next step for each of those, mark the nighbours that they have "closed" space near them, marking tiles with more then x ( 1 to 8 ) "taken" spaces as closed ( not buildable ).
 
-```bash
-# npm
-npm install
+next step we generate a cost map for all tiles in the map.
+cost from the "ceneter" a.k.a starting spwan.
 
-# yarn
-yarn
-```
+we mark tiles with cost less then Y as buildable and drop them in open set.
+we mark tiles with cost > Y && cost < Y + 20 as "edges"
 
-Fire up your preferred editor with typescript installed and you are good to go!
+next : 
+we generate W buildings, ( max number ) on the open set.
 
-### Rollup and code upload
+for each new building we make sure it doesnt break the following rules.
 
-Screeps Typescript Starter uses rollup to compile your typescript and upload it to a screeps server.
+if any building b in Buildings now has a cost > G, or any edge e has cost > G
+we revert back and mark the tile as not buildable.
 
-Move or copy `screeps.sample.json` to `screeps.json` and edit it, changing the credentials and optionally adding or removing some of the destinations.
+in case it didn't break those rules we add the tile in buildings, and remove from open.
 
-Running `rollup -c` will compile your code and do a "dry run", preparing the code for upload but not actually pushing it. Running `rollup -c --environment DEST:main` will compile your code, and then upload it to a screeps server using the `main` config from `screeps.json`.
 
-You can use `-cw` instead of `-c` to automatically re-run when your source code changes - for example, `rollup -cw --environment DEST:main` will automatically upload your code to the `main` configuration every time your code is changed.
 
-Finally, there are also NPM scripts that serve as aliases for these commands in `package.json` for IDE integration. Running `npm run push-main` is equivalent to `rollup -c --environment DEST:main`, and `npm run watch-sim` is equivalent to `rollup -cw --dest sim`.
-
-#### Important! To upload code to a private server, you must have [screepsmod-auth](https://github.com/ScreepsMods/screepsmod-auth) installed and configured!
-
-## Typings
-
-The type definitions for Screeps come from [typed-screeps](https://github.com/screepers/typed-screeps). If you find a problem or have a suggestion, please open an issue there.
-
-## Documentation
-
-We've also spent some time reworking the documentation from the ground-up, which is now generated through [Gitbooks](https://www.gitbook.com/). Includes all the essentials to get you up and running with Screeps AI development in TypeScript, as well as various other tips and tricks to further improve your development workflow.
-
-Maintaining the docs will also become a more community-focused effort, which means you too, can take part in improving the docs for this starter kit.
-
-To visit the docs, [click here](https://screepers.gitbook.io/screeps-typescript-starter/).
-
-## Contributing
-
-Issues, Pull Requests, and contribution to the docs are welcome! See our [Contributing Guidelines](CONTRIBUTING.md) for more details.
+Next step:
+We generate the buildings we need ( labs, tower, extentions , etc...) on tiles in buildings list.
+based on other rules! 
+(a.k.a labs would take 10 tiles with max range of 2 from each other or something like dat ).
+(storage & link would be in range of 1 from spawn ... )
