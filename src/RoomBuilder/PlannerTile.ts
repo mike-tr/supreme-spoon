@@ -18,6 +18,10 @@ export class PlannerTile implements TileMemory {
 
     cost: number = Number.MAX_VALUE;
 
+    private cycleId: number = -1;
+    private static cycle: number = 0;
+    private static changed: Array<PlannerTile> = [];
+
     constructor(planner: RoomPlanner, XGrid: number, YGrid: number) {
         this.planner = planner;
         this.XGrid = XGrid;
@@ -47,15 +51,69 @@ export class PlannerTile implements TileMemory {
         return this.originDistanceSqrt < distance * distance;
     }
 
-    public UpdateNeighboursCost() {
+    public UpdateNeighbours() {
         if (this == this.planner.center) {
-            console.log("???");
-
+            PlannerTile.cycle++;
             this.SetCost(0);
         }
     }
 
+    public TryMarkAsBuilding(type: string): boolean {
+        if (this.walkable && this.open) {
+            let old = {
+                type: this.type,
+                open: this.open,
+                walkable: this.walkable
+            };
+
+            this.type = type;
+            // calculate new map values.
+            // see if any old building is "broken" now.
+            // if not good.
+            // if someone broke, revert!
+
+            PlannerTile.changed = [];
+            this.UpdateAdjecent(false, false);
+            //this.planner.center.UpdateNeighbours();
+
+            var revert = false;
+            for (const name in this.planner.buildings) {
+                var tile = this.planner.buildings[name];
+                if (tile.cost > this.planner.maxucost || tile.adjecentOpen < this.planner.minOpen) {
+                    revert = true;
+                    break;
+                }
+            }
+
+            if (!revert) {
+                for (const name in this.planner.edges) {
+                    var tile = this.planner.edges[name];
+                    if (tile.cost > this.planner.maxucost || tile.adjecentOpen < this.planner.minOpen) {
+                        revert = true;
+                        break;
+                    }
+                }
+            }
+
+            if (revert) {
+                this.type = old.type;
+
+                this.UpdateAdjecent(old.walkable, old.open);
+                //this.planner.center.UpdateNeighbours();
+                return false;
+            } else {
+                this.planner.buildings.push(this);
+                this.planner.UpdateOpen();
+            }
+            return true;
+        } else {
+            this.type = type;
+            return true;
+        }
+    }
+
     private SetCost(cost: number) {
+        this.cycleId = PlannerTile.cycle;
         this.cost = cost;
         for (let x = -1; x <= 1; x++) {
             for (let y = -1; y <= 1; y++) {
@@ -69,7 +127,7 @@ export class PlannerTile implements TileMemory {
                 if (ncost > 10) ncost = 14;
                 ncost = this.cost + ncost;
 
-                if (ncost < tile.cost) {
+                if (tile.cycleId != PlannerTile.cycle || ncost < tile.cost) {
                     if (tile.walkable) {
                         tile.SetCost(ncost);
                     } else {
@@ -77,13 +135,6 @@ export class PlannerTile implements TileMemory {
                     }
                 }
             }
-        }
-    }
-
-    public RemoveNearby() {
-        this.adjecentOpen--;
-        if (this.adjecentOpen <= this.planner.minOpen) {
-            this.open = false;
         }
     }
 
@@ -109,21 +160,31 @@ export class PlannerTile implements TileMemory {
         };
     }
 
-    public SetType(type: string) {
+    public SetTypeToAndUpdate(type: string) {
         if (this.walkable) {
-            this.walkable = false;
-            this.open = false;
+            this.UpdateAdjecent(false, false);
+        } else if (this.type != type) {
             this.type = type;
+        }
+    }
+
+    public UpdateAdjecent(walkable: boolean, open: boolean = false) {
+        if (this.open != open) {
+            this.walkable = walkable;
+            this.open = open;
 
             for (let x = -1; x <= 1; x++) {
                 for (let y = -1; y <= 1; y++) {
-                    if (x < 0 || y < 0 || x > 49 || y > 49) continue;
                     if (x == 0 && y == 0) continue;
-                    this.planner.map[this.XGrid + x][this.YGrid + y].RemoveNearby();
+                    let gx = this.XGrid + x;
+                    let gy = this.YGrid + y;
+                    if (gx < 0 || gy < 0 || gx > 49 || gy > 49) continue;
+                    let tile = this.planner.map[gx][gy];
+
+                    tile.adjecentOpen += open ? 1 : -1;
+                    tile.open = tile.adjecentOpen >= this.planner.minOpen;
                 }
             }
-        } else if (this.type != type) {
-            this.type = type;
         }
     }
 }
