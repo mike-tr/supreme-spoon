@@ -14,6 +14,10 @@ it would mark all of the above as not open and unwalkable.
 
 next step for each of those, mark the nighbours that they have "closed" space near them, marking tiles with more then x ( 1 to 8 ) "taken" spaces as closed ( not buildable ).
 
+Generating 500 buildings with the rule of "needs 4 free spaces near building"
+https://i.gyazo.com/5029a2f94c77e0e4fe5789f46b10c376.png
+
+
 next step we generate a cost map for all tiles in the map.
 cost from the "ceneter" a.k.a starting spwan.
 
