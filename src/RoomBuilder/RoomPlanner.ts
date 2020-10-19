@@ -1,20 +1,27 @@
 import { time } from "console";
 import { forEach } from "lodash";
+import { join } from "path";
 import { PlannerTile } from "RoomBuilder/PlannerTile";
 
 export class RoomPlanner {
     public room: Room;
     public map: PlannerTile[][];
     public center: PlannerTile;
+
+    public ez: PlannerTile;
+    public ez2: PlannerTile;
+
     public range: number;
 
     public open: Array<PlannerTile> = new Array();
     public edges: Array<PlannerTile> = new Array();
     public buildings: Array<PlannerTile> = new Array();
+    public initialz: Array<PlannerTile> = new Array();
 
-    public minOpen: number = 4;
-    public maxCost: number = 150;
-    public maxucost: number = 24;
+    public minOpen: number = 2;
+    public maxCost: number = 130;
+    public maxucost: number = 22;
+    public maxGroupSize: number = 11;
 
     memory: PlannerMemory;
     constructor(room: Room, xCenter: number, yCenter: number) {
@@ -22,7 +29,9 @@ export class RoomPlanner {
         this.room = room;
         this.map = [];
         this.center = new PlannerTile(this, xCenter, yCenter);
-        this.maxucost += this.maxCost * 1.1 + 20;
+        this.maxucost += this.maxCost;
+
+        this.ez = this.ez2 = this.center;
         if (room.memory.planner == null || Game.time % 5 == 0) {
             this.room.memory.planner = {} as PlannerMemory;
 
@@ -91,6 +100,14 @@ export class RoomPlanner {
             });
         });
 
+        this.memory.edges.forEach(tile => {
+            this.room.visual.circle(tile.XGrid, tile.YGrid, {
+                fill: "transparent",
+                radius: 0.35,
+                stroke: "red"
+            });
+        });
+
         // this.memory.buildings.forEach(tile => {
         //     this.room.visual.circle(tile.XGrid, tile.YGrid, {
         //         fill: "transparent",
@@ -110,6 +127,16 @@ export class RoomPlanner {
             }
         }
         this.map[this.center.XGrid][this.center.YGrid] = this.center;
+        // for (let i = -2; i <= 2; i++) {
+
+        //     let gx = this.center.XGrid + i;
+        //     if (gx >= 0 && gx < 50) {
+        //         this.map[gx][this.center.YGrid].open = false;
+        //     }
+        // }
+
+        //this.ez.SetAsWall();
+        //this.ez2.SetAsWall();
 
         for (let XGrid = 0; XGrid < 50; XGrid++) {
             for (let YGrid = 0; YGrid < 50; YGrid++) {
@@ -118,32 +145,58 @@ export class RoomPlanner {
                 var tilev = terrain.get(XGrid, YGrid);
 
                 if (tilev == 1) {
-                    tile.SetTypeToAndUpdate("WALL");
+                    tile.SetAsWall();
+                    //tile.SetTypeToAndUpdate("WALL");
                 }
             }
         }
         this.center.SetTypeToAndUpdate(STRUCTURE_SPAWN);
+        this.center.building = true;
 
         this.GetRoomInitials();
 
         this.center.UpdateNeighbours();
 
+        let shifto: PlannerTile[] = []
+
+        let ho: PlannerTile[] = [];
+
         for (let XGrid = 0; XGrid < 50; XGrid++) {
             for (let YGrid = 0; YGrid < 50; YGrid++) {
                 var tile = this.map[XGrid][YGrid];
-                if (tile.open && tile.cost < this.maxCost) {
+                if (tile.adjecenetWalls > 1) {
+                    continue;
+                }
+                if (tile.open && tile.cost < this.maxCost * 0.9) {
+                    // if (tile.cost < 28) {
+                    //     let c = tile.getCopy();
+                    //     shifto.push(tile);
+                    //     ho.push(c);
+                    //     continue;
+                    // } else if (tile.cost < 50) {
+                    //     ho.push(tile.getCopy());
+                    // }
                     this.open.push(tile);
-                } else if (tile.open && tile.cost < this.maxCost + 20) {
+                } else if (tile.open && tile.cost > 0.9 * this.maxCost && tile.cost < this.maxCost) {
                     this.edges.push(tile);
                 }
             }
         }
 
-        this.open.sort((a, b) => (a.cost > b.cost ? -1 : 1));
-        console.log(this.open[0].cost);
+        this.edges.sort((a, b) => (a.originDistanceSqrt > b.originDistanceSqrt ? -1 : 1));
+        this.edges = this.edges.slice(0, Math.floor(this.maxCost * 0.08));
 
-        for (let index = 0; index < 500; index++) {
+        this.open.sort((a, b) => (a.cost > b.cost ? -1 : 1));
+        this.maxucost = this.maxCost * 2.1;
+
+        //let k = this.open;
+        //this.maxGroupSize = 7;
+
+        for (let index = 0; index < 300; index++) {
             let tile = this.open.shift();
+            if (tile == null) {
+                break;
+            }
 
             while (tile) {
                 if (tile.TryMarkAsBuilding("Test")) {
@@ -153,19 +206,55 @@ export class RoomPlanner {
             }
         }
 
+        // ho.forEach(tile => {
+        //     this.map[tile.XGrid][tile.YGrid] = tile;
+        // })
+
+        let v = this.buildings;
+        //this.buildings = [];
+        this.open = shifto;
+        this.maxGroupSize = 5;
+        for (let index = 0; index < 300; index++) {
+            let tile = this.open.pop();
+            if (tile == null) {
+                break;
+            }
+
+            while (tile) {
+                if (tile.TryMarkAsBuilding("Test")) {
+                    break;
+                }
+                tile = this.open.pop();
+            }
+        }
+
         this.SaveToMemory();
     }
 
-    public UpdateOpen() {
-        var temp: Array<PlannerTile> = [];
-        for (const key in this.open) {
-            var tile = this.open[key];
-            if (tile.open) {
-                temp.push(tile);
-            }
-        }
-        this.open = temp;
+    xc: number = 0;
+    yc: number = 0;
+    n: number = 0;
+
+    j: number = 1;
+    public UpdateCenterOfMass(tile: PlannerTile) {
+
+    }
+
+    public UpdateOpen(tile: PlannerTile) {
+        // const index = this.open.indexOf(tile, 0);
+        // if (index > -1) {
+        //     this.open.splice(index, 1);
+        // }
+
+        this.xc += tile.x * (3 - this.j);
+        this.yc += tile.y * this.j;
+        this.n += this.j;
+        this.j = this.j % 2 + 1;
+
+        let x = this.xc / this.n;
+        let y = this.yc / this.n;
         this.open.sort((a, b) => (a.cost > b.cost ? -1 : 1));
+        //this.open.sort((a, b) => (a.Proximity(x, y) < b.Proximity(x, y) ? -1 : 1));
     }
 
     GetRoomInitials() {
@@ -175,7 +264,8 @@ export class RoomPlanner {
                 id: source.id
             };
             let tile = this.map[source.pos.x][source.pos.y];
-            tile.SetTypeToAndUpdate("Source");
+            tile.SetAsWall();
+            tile.type = "soruce";
             this.memory.sources.push(sdata);
         });
 
@@ -185,14 +275,16 @@ export class RoomPlanner {
                 id: source.id
             };
             let tile = this.map[source.pos.x][source.pos.y];
-            tile.SetTypeToAndUpdate("Mineral");
+            tile.SetAsWall();
+            tile.type = "mineral";
             this.memory.minerals.push(sdata);
         });
 
         var controller = this.room.controller;
         if (controller) {
             let tile = this.map[controller.pos.x][controller.pos.y];
-            tile.SetTypeToAndUpdate("Controller");
+            tile.SetAsWall();
+            tile.type = STRUCTURE_CONTROLLER;
         }
     }
 
@@ -211,8 +303,14 @@ export class RoomPlanner {
             sbuildings.push(tile.ToMemory());
         });
 
+        var sedges: Array<TileMemory> = [];
+        this.edges.forEach(tile => {
+            sedges.push(tile.ToMemory());
+        });
+
         this.memory.map = mmap;
         this.memory.center = this.center.ToMemory();
         this.memory.buildings = sbuildings;
+        this.memory.edges = sedges;
     }
 }

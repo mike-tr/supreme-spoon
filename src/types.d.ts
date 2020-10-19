@@ -35,6 +35,7 @@ interface TileMemory {
 interface PlannerMemory {
     map: TileMemory[][];
     buildings: Array<TileMemory>;
+    edges: Array<TileMemory>;
     center: TileMemory;
     sources: SourceMemory[];
     minerals: SourceMemory[];
